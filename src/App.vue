@@ -121,7 +121,7 @@ async function run() {
       if (field.type == 'Addin' && field.code.includes('ZOTERO_ITEM')) {
         var code = field.code.replace('ADDIN ZOTERO_ITEM CSL_CITATION ', '').trim();
         var jsCode = JSON.parse(code);
-        console.log(jsCode);
+        // console.log(jsCode);
         // console.log("JS Code: " + code);
         // console.log("Range of result " + i + ": " + field.result['text']);
 
@@ -147,7 +147,7 @@ async function run() {
           var uris = citationItem['uris'];
           var baseName =new URL(uris).pathname.split('/').pop();
           var zoteroUrl = `zotero://select/library/items/${baseName}`;
-          console.log("Zotero URL: " + zoteroUrl);
+          // console.log("Zotero URL: " + zoteroUrl);
           ctn['uris'].push(zoteroUrl);
 
           // 引用键值
