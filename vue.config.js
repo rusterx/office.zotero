@@ -5,6 +5,8 @@ const homedir = require("os").homedir();
 
 module.exports = defineConfig({
     transpileDependencies: true,
+    // 配置相对路径
+    publicPath: '/office.zotero/dist',
     devServer: {
         port: 8081,
         server: {
@@ -17,6 +19,7 @@ module.exports = defineConfig({
             },
         },
     },
+    // 配置index的文件名称
     pages: {
         index: {
             filename: "taskpane.html",

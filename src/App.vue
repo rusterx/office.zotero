@@ -1,10 +1,16 @@
 <template>
   <div id="app">
     <button class="btn btn-primary btn-run" @click="run">运行</button>
-    <div v-for="(ctn, index) in citations" :key="index" class="ctn-panel" ref="ctnViews">
+    <div v-for="(ctn, i) in citations" :key="i" class="ctn-panel" ref="ctnViews">
       <h3>{{ ctn['citation'] }}</h3>
       <ul>
-        <li v-for="(bib, index) in ctn['bibliography']" :key="index">{{ bib }}</li>
+        <li v-for="(bib, j) in ctn['bibliography']" :key="j">
+          <a :href="ctn['uris'][j]" target="_blank" title="打开Zotero项目">
+            <i class="bi bi-diagram-2 text-danger"></i>
+          </a>
+          <i class="bi bi-box-fill text-danger px-1" @click.prevent="copyId(i, j)" title="复制ID"></i>
+          <span>{{ bib }}</span>
+        </li>
       </ul>
     </div>
   </div>
@@ -23,6 +29,9 @@ const ctnViews = ref([]);
 var plainCitations = [];
 
 onMounted(async () => {
+  // 默认会运行一次
+  run();
+  // 监听事件
   Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectedChange);
 });
 
@@ -31,15 +40,22 @@ onUnmounted(() => {
   Office.context.document.removeHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectedChange);
 });
 
+
+async function copyId(i, j) {
+  var ctnKey = citations.value[i]['keys'][j];
+  navigator.clipboard.writeText(ctnKey);
+}
+
+
 async function onSelectedChange(e) {
   await Word.run(async (context) => {
-    const range = context.document.getSelection();
-    range.load(['text', 'fields', 'parentBody', 'isEmpty']);
+    const selection = context.document.getSelection();
+    selection.load(['text', 'fields', 'parentBody', 'isEmpty']);
     await context.sync();
 
-    const currentParagraph = context.document.getSelection().paragraphs.getFirst()
-
-    const contentRange = range.expandToOrNullObject(currentParagraph.getRange(Word.RangeLocation.end));
+    // 此种方法可以得到当前光标所在的段落，但是无法得到当前段落的field
+    const currentParagraph = selection.paragraphs.getFirstOrNullObject()
+    const contentRange = selection.expandToOrNullObject(currentParagraph.getRange(Word.RangeLocation.end));
     contentRange.load(['text', 'fields', 'parentBody', 'isEmpty']);
     await context.sync();
 
@@ -54,7 +70,7 @@ async function onSelectedChange(e) {
       await context.sync();
 
       if (field.type == 'Addin' && field.code.includes('ZOTERO_ITEM')) {
-        console.log("Range of result: " + field.result['text']);
+        // console.log("Range of result: " + field.result['text']);
         var fieldText = field.result['text'];
         var startIndex = contentRange.text.indexOf(fieldText);
 
@@ -63,8 +79,11 @@ async function onSelectedChange(e) {
           return;
         }
 
+        // 找不到field的引用
         var index = plainCitations.indexOf(fieldText);
         if (index == -1) {
+          console.log("找不到引用");
+          run();
           return;
         }
 
@@ -95,34 +114,45 @@ async function run() {
       await context.sync();
       var ctn = {
         'citation': '',
-        'bibliography': ''
+        'bibliography': [],
+        'uris': [],
+        'keys': []
       }
       if (field.type == 'Addin' && field.code.includes('ZOTERO_ITEM')) {
         var code = field.code.replace('ADDIN ZOTERO_ITEM CSL_CITATION ', '').trim();
         var jsCode = JSON.parse(code);
-        console.log("Range of result " + i + ": " + field.result['text']);
+        console.log(jsCode);
+        // console.log("JS Code: " + code);
+        // console.log("Range of result " + i + ": " + field.result['text']);
 
         // citation
         ctn['citation'] = jsCode['properties']['plainCitation'];
-        // if(plainCitations.includes(jsCode['properties']['plainCitation'])){
-        //   continue;
-        // }
         plainCitations.push(jsCode['properties']['plainCitation']);
 
         // bibliography
         var citationItems = jsCode['citationItems']
-        var bibliographyItems = [];
         for (let j = 0; j < citationItems.length; j++) {
           var citationItem = citationItems[j];
+
+          // 解析bibliography
           var itemData = citationItem['itemData'];
           var cite = new Cite(itemData);
           var bibliography = cite.format('bibliography', {
             format: 'text',
             template: 'apa'
           });
-          bibliographyItems.push(bibliography)
+          ctn['bibliography'].push(bibliography);
+
+          // 解析URL
+          var uris = citationItem['uris'];
+          var baseName =new URL(uris).pathname.split('/').pop();
+          var zoteroUrl = `zotero://select/library/items/${baseName}`;
+          console.log("Zotero URL: " + zoteroUrl);
+          ctn['uris'].push(zoteroUrl);
+
+          // 引用键值
+          ctn['keys'].push(itemData['citation-key']);
         }
-        ctn['bibliography'] = bibliographyItems;
 
         // push citation to citations
         citations.value.push(ctn);
